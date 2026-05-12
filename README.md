@@ -15,7 +15,7 @@ of `$xr`, exposing sensitive data across privilege boundaries or between SMT sib
 
 The proof-of-concept works as follows:
 
-1. **Load** data into an `$xrN` register via `xvld`.
+1. **Load** all-zero data into an `$xrN` register via `xvld`.
 2. **Execute** an LSX instruction (e.g., `vor.v $vrN, $vrN, $vrN`) that should
    only touch the lower 128 bits.
 3. **Store** the full 256-bit register back via `xvst`.
