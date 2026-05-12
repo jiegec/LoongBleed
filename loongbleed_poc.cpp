@@ -85,9 +85,8 @@ static void *worker(void *arg) {
   std::set<std::pair<uint64_t, uint64_t>> seen;
 
   while (running) {
-    // Clear the result area (bytes 32..63 of each chunk)
-    for (int i = 0; i < REPEAT; i++)
-      memset(buf + CHUNK_SIZE * i + 32, 0, 32);
+    // Clear the area
+    memset(buf, 0, BUF_SIZE);
 
     // Run the gadget
     test_gadget(buf);
@@ -98,7 +97,7 @@ static void *worker(void *arg) {
       uint64_t leaked_lo = chunk[6];
       uint64_t leaked_hi = chunk[7];
 
-      if (leaked_lo == 0 && leaked_hi == 0)
+      if (leaked_lo == 0 || leaked_hi == 0)
         continue;
 
       auto key = std::make_pair(leaked_lo, leaked_hi);
