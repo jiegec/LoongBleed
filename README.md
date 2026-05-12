@@ -3,7 +3,7 @@
 LoongBleed is a hardware vulnerability, conceptually similar to
 [ZenBleed (CVE-2023-20593)](https://lock.cmpxchg8b.com/zenbleed.html) — affecting
 Loongson LA664 processors (e.g., 3C6000/D series) that implement both LSX (128-bit SIMD) and
-LASX (256-bit SIMD).
+LASX (256-bit SIMD). It does **not** apply to the previous-generation LA464 cores.
 
 On LoongArch, the LSX `$vr` registers (128-bit) alias the lower half of the LASX `$xr` registers
 (256-bit). LSX instructions are only defined to operate on the lower 128 bits; the upper 128 bits
