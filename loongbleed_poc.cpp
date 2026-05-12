@@ -35,8 +35,7 @@ static int num_online_cpus;
 static int
     *thread_cpus; // list of logical CPUs to pin to (one per physical core)
 
-static std::set<std::pair<uint64_t, uint64_t>> seen;
-static pthread_mutex_t seen_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 // ---- Signal handler for clean shutdown ------------------------------------
 static void sigint_handler(int) { running = 0; }
@@ -83,6 +82,8 @@ static void *worker(void *arg) {
 
   printf("[cpu %2d] thread started, pinning to CPU %d\n", cpu, cpu);
 
+  std::set<std::pair<uint64_t, uint64_t>> seen;
+
   while (running) {
     // Clear the result area (bytes 32..63 of each chunk)
     for (int i = 0; i < REPEAT; i++)
@@ -100,7 +101,6 @@ static void *worker(void *arg) {
       if (leaked_lo == 0 && leaked_hi == 0)
         continue;
 
-      pthread_mutex_lock(&seen_lock);
       auto key = std::make_pair(leaked_lo, leaked_hi);
       if (seen.find(key) == seen.end()) {
         seen.insert(key);
@@ -117,6 +117,7 @@ static void *worker(void *arg) {
             all_ascii = 0;
 
         if (all_ascii) {
+          pthread_mutex_lock(&lock);
           printf("[cpu %3d] LEAK chunk=%2d  "
                  "upper=0x%016lx_%016lx  ascii=",
                  cpu, j, leaked_hi, leaked_lo);
@@ -125,10 +126,9 @@ static void *worker(void *arg) {
           for (int i = 0; i < 8; i++)
             putchar(q[i]);
           putchar('\n');
-          fflush(stdout);
+          pthread_mutex_unlock(&lock);
         }
       }
-      pthread_mutex_unlock(&seen_lock);
     }
   }
   return NULL;
