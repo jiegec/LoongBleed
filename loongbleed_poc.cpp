@@ -41,24 +41,58 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static void sigint_handler(int) { running = 0; }
 
 // ---- Gadget ----------------------------------------------------------------
-// Inline assembly: load 256-bit pattern into $xr0, run an LSX instruction
-// (vor.v) on $vr0, then store the full 256-bit result.
+// Macro: test LSX instruction on register $vrN / $xrN.
+#define LSX_LEAK_TEST(N)                                                       \
+  __asm__ volatile("xvld  $xr" #N ", %[p], 0\n\t"                              \
+                   "vor.v $vr" #N ", $vr" #N ", $vr" #N "\n\t"                 \
+                   "xvst  $xr" #N ", %[p], 32\n\t"                             \
+                   :                                                           \
+                   : [p] "r"(p)                                                \
+                   : "$xr" #N, "memory")
+
+// Inline assembly: load 256-bit pattern into $xr%j, run an LSX instruction
+// (vor.v) on $vr%j, then store the full 256-bit result.  Each iteration uses a
+// different register pair ($vr0 … $vr15 / $xr0 … $xr15) to probe for leaks
+// across the register file.
 //
 // Arguments:
-//   a0 (x0 = buf)  -- pointer to current chunk
+//   a0 (x0 = buf)  -- pointer to first chunk
 //
 // The "memory" clobber ensures the compiler reloads/stores around the asm.
 static void __attribute__((noinline)) test_gadget(char *buf) {
   char *p = buf;
-  for (int j = 0; j < REPEAT; j++) {
-    __asm__ volatile("xvld  $xr0, %0, 0\n\t"
-                     "vor.v $vr0, $vr0, $vr0\n\t"
-                     "xvst  $xr0, %0, 32\n\t"
-                     :
-                     : "r"(p)
-                     : "$xr0", "memory");
-    p += CHUNK_SIZE;
-  }
+  LSX_LEAK_TEST(0);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(1);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(2);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(3);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(4);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(5);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(6);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(7);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(8);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(9);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(10);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(11);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(12);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(13);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(14);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST(15);
+  p += CHUNK_SIZE;
 }
 
 // ---- Per-thread worker -----------------------------------------------------
@@ -155,19 +189,59 @@ static int discover_cpus(void) {
 }
 
 // ---- Main ------------------------------------------------------------------
-int main(void) {
+static void usage(const char *prog) {
+  fprintf(stderr,
+          "Usage: %s [OPTIONS]\n"
+          "Detect data leaks into upper 128 bits of LASX $xr registers when\n"
+          "executing LSX instructions.\n\n"
+          "Options:\n"
+          "  -a, --all    Launch one thread pinned to each physical core.\n"
+          "               By default only thread on CPU 0 is launched.\n"
+          "  -h, --help   Show this help and exit.\n",
+          prog);
+}
+
+int main(int argc, char **argv) {
+  int all_cores = 0;
+
+  // Parse command-line arguments
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--all") == 0) {
+      all_cores = 1;
+    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+      usage(argv[0]);
+      return 0;
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", argv[i]);
+      usage(argv[0]);
+      return 1;
+    }
+  }
+
   printf("=== LSX upper-128-bit leak detector (multithreaded) ===\n");
   printf("Detecting data leaks into upper 128 bits of $xr registers\n");
   printf("when executing LSX instructions.\n\n");
 
-  int n_threads = discover_cpus();
-  if (n_threads <= 0) {
-    fprintf(stderr, "Failed to discover CPU topology\n");
-    return 1;
+  int n_threads;
+  int single_cpu_buf = 0;
+
+  if (all_cores) {
+    n_threads = discover_cpus();
+    if (n_threads <= 0) {
+      fprintf(stderr, "Failed to discover CPU topology\n");
+      return 1;
+    }
+    printf("Discovered %d physical cores, launching one thread per core\n",
+           n_threads);
+  } else {
+    // Default: single thread pinned to CPU 0
+    n_threads = 1;
+    thread_cpus = &single_cpu_buf;
+    thread_cpus[0] = 0;
+    printf("Single-thread mode, pinning to CPU 0\n");
+    printf("  (use --all to launch one thread per physical core)\n");
   }
 
-  printf("Discovered %d physical cores, launching one thread per core\n",
-         n_threads);
   printf("Thread-to-CPU mapping:\n");
   for (int i = 0; i < n_threads; i++)
     printf("  thread[%2d] -> CPU %d\n", i, thread_cpus[i]);
@@ -199,7 +273,8 @@ int main(void) {
     pthread_join(threads[i], NULL);
 
   free(threads);
-  free(thread_cpus);
+  if (all_cores)
+    free(thread_cpus);
   printf("\n=== Done ===\n");
   return 0;
 }
