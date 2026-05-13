@@ -184,15 +184,7 @@ static void *worker(void *arg) {
           int cont_count = 0;
           for (int i = 0; i < 28; i++) {
             if (p[i] >= 0x20 && p[i] <= 0x7e) {
-              if (i > 0) {
-                if (p[i - 1] >= 0x20 && p[i - 1] <= 0x7e) {
-                  cont_count += 1;
-                } else {
-                  cont_count = 1;
-                }
-              } else {
-                cont_count = 1;
-              }
+              cont_count += 1;
             } else {
               cont_count = 0;
             }
