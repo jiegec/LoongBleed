@@ -162,7 +162,31 @@ static void *worker(void *arg) {
 
       // Check for leaked data in the lower 128 bits
       uint64_t lo = chunk[4];
-      assert(lo == 0); // No leaks observed
+      if (lo != 0) {
+        auto key = std::make_pair(0, lo);
+        if (seen.find(key) == seen.end()) {
+          seen.insert(key);
+
+          // Only print if all 8 bytes are valid ASCII
+          uint8_t *p = (uint8_t *)&lo;
+          int all_ascii = 1;
+          for (int i = 0; i < 8 && all_ascii; i++)
+            if (p[i] < 0x20 || p[i] > 0x7e)
+              all_ascii = 0;
+
+          if (all_ascii) {
+            pthread_mutex_lock(&lock);
+            printf("[cpu %3d] LEAK chunk=%2d  "
+                   "lower=0x%016lx_%016lx  ascii=",
+                   cpu, j, hi, lo);
+            for (int i = 0; i < 8; i++)
+              putchar(p[i]);
+            putchar('\n');
+            pthread_mutex_unlock(&lock);
+          }
+        }
+      }
+
       uint64_t hi = chunk[5];
       if (hi != 0) {
         auto key = std::make_pair(hi, 0);
