@@ -157,41 +157,70 @@ static void *worker(void *arg) {
     // Run the gadget
     test_gadget(buf);
 
-    // Check for leaked data in the upper 128 bits of each chunk
     for (int j = 0; j < REPEAT; j++) {
       uint64_t *chunk = (uint64_t *)(buf + CHUNK_SIZE * j);
+
+      // Check for leaked data in the lower 128 bits
+      uint64_t lo = chunk[4];
+      assert(lo == 0); // No leaks observed
+      uint64_t hi = chunk[5];
+      if (hi != 0) {
+        auto key = std::make_pair(hi, 0);
+        if (seen.find(key) == seen.end()) {
+          seen.insert(key);
+
+          // Only print if all 8 bytes are valid ASCII
+          uint8_t *p = (uint8_t *)&hi;
+          int all_ascii = 1;
+          for (int i = 0; i < 8 && all_ascii; i++)
+            if (p[i] < 0x20 || p[i] > 0x7e)
+              all_ascii = 0;
+
+          if (all_ascii) {
+            pthread_mutex_lock(&lock);
+            printf("[cpu %3d] LEAK chunk=%2d  "
+                   "lower=0x%016lx_%016lx  ascii=",
+                   cpu, j, hi, lo);
+            for (int i = 0; i < 8; i++)
+              putchar(p[i]);
+            putchar('\n');
+            pthread_mutex_unlock(&lock);
+          }
+        }
+      }
+
+      // Check for leaked data in the upper 128 bits of each chunk
       uint64_t leaked_lo = chunk[6];
       uint64_t leaked_hi = chunk[7];
 
-      if (leaked_lo == 0 || leaked_hi == 0)
-        continue;
+      if (leaked_lo != 0 && leaked_hi != 0) {
+        auto key = std::make_pair(leaked_lo, leaked_hi);
+        if (seen.find(key) == seen.end()) {
+          seen.insert(key);
 
-      auto key = std::make_pair(leaked_lo, leaked_hi);
-      if (seen.find(key) == seen.end()) {
-        seen.insert(key);
+          // Only print if all 16 bytes are valid ASCII
+          uint8_t *p = (uint8_t *)&leaked_lo;
+          uint8_t *q = (uint8_t *)&leaked_hi;
+          int all_ascii = 1;
+          for (int i = 0; i < 8 && all_ascii; i++)
+            if (p[i] < 0x20 || p[i] > 0x7e)
+              all_ascii = 0;
+          for (int i = 0; i < 8 && all_ascii; i++)
+            if (q[i] < 0x20 || q[i] > 0x7e)
+              all_ascii = 0;
 
-        // Only print if all 16 bytes are valid ASCII
-        uint8_t *p = (uint8_t *)&leaked_lo;
-        uint8_t *q = (uint8_t *)&leaked_hi;
-        int all_ascii = 1;
-        for (int i = 0; i < 8 && all_ascii; i++)
-          if (p[i] < 0x20 || p[i] > 0x7e)
-            all_ascii = 0;
-        for (int i = 0; i < 8 && all_ascii; i++)
-          if (q[i] < 0x20 || q[i] > 0x7e)
-            all_ascii = 0;
-
-        if (all_ascii) {
-          pthread_mutex_lock(&lock);
-          printf("[cpu %3d] LEAK chunk=%2d  "
-                 "upper=0x%016lx_%016lx  ascii=",
-                 cpu, j, leaked_hi, leaked_lo);
-          for (int i = 0; i < 8; i++)
-            putchar(p[i]);
-          for (int i = 0; i < 8; i++)
-            putchar(q[i]);
-          putchar('\n');
-          pthread_mutex_unlock(&lock);
+          if (all_ascii) {
+            pthread_mutex_lock(&lock);
+            printf("[cpu %3d] LEAK chunk=%2d  "
+                   "upper=0x%016lx_%016lx  ascii=",
+                   cpu, j, leaked_hi, leaked_lo);
+            for (int i = 0; i < 8; i++)
+              putchar(p[i]);
+            for (int i = 0; i < 8; i++)
+              putchar(q[i]);
+            putchar('\n');
+            pthread_mutex_unlock(&lock);
+          }
         }
       }
     }
