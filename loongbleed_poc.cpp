@@ -56,6 +56,20 @@ static void sigint_handler(int) { running = 0; }
                    :                                                           \
                    : [p] "r"(p)                                                \
                    : "$xr" #N, "memory")
+#define LSX_LEAK_TEST_FLD_D(N)                                                 \
+  __asm__ volatile("xvld  $xr" #N ", %[p], 0\n\t"                              \
+                   "fld.d   $f" #N ", %[p], 0\n\t"                             \
+                   "xvst  $xr" #N ", %[p], 32\n\t"                             \
+                   :                                                           \
+                   : [p] "r"(p)                                                \
+                   : "$xr" #N, "memory")
+#define LSX_LEAK_TEST_FLD_S(N)                                                 \
+  __asm__ volatile("xvld  $xr" #N ", %[p], 0\n\t"                              \
+                   "fld.s $f" #N ", %[p], 0\n\t"                               \
+                   "xvst  $xr" #N ", %[p], 32\n\t"                             \
+                   :                                                           \
+                   : [p] "r"(p)                                                \
+                   : "$xr" #N, "memory")
 
 typedef void (*gadget)(char *buf);
 
@@ -68,78 +82,48 @@ typedef void (*gadget)(char *buf);
 //   a0 (x0 = buf)  -- pointer to first chunk
 //
 // The "memory" clobber ensures the compiler reloads/stores around the asm.
-static void __attribute__((noinline)) test_gadget_vor(char *buf) {
-  char *p = buf;
-  LSX_LEAK_TEST_VOR(0);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(1);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(2);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(3);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(4);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(5);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(6);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(7);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(8);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(9);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(10);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(11);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(12);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(13);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(14);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VOR(15);
-  p += CHUNK_SIZE;
-}
+#define CREATE_GADGET(name, macro)                                             \
+  static void __attribute__((noinline)) name(char *buf) {                      \
+    char *p = buf;                                                             \
+    macro(0);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(1);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(2);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(3);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(4);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(5);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(6);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(7);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(8);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(9);                                                                  \
+    p += CHUNK_SIZE;                                                           \
+    macro(10);                                                                 \
+    p += CHUNK_SIZE;                                                           \
+    macro(11);                                                                 \
+    p += CHUNK_SIZE;                                                           \
+    macro(12);                                                                 \
+    p += CHUNK_SIZE;                                                           \
+    macro(13);                                                                 \
+    p += CHUNK_SIZE;                                                           \
+    macro(14);                                                                 \
+    p += CHUNK_SIZE;                                                           \
+    macro(15);                                                                 \
+    p += CHUNK_SIZE;                                                           \
+  }
 
-// Variant of test gadget that uses vld
-static void __attribute__((noinline)) test_gadget_vld(char *buf) {
-  char *p = buf;
-  LSX_LEAK_TEST_VLD(0);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(1);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(2);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(3);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(4);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(5);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(6);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(7);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(8);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(9);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(10);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(11);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(12);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(13);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(14);
-  p += CHUNK_SIZE;
-  LSX_LEAK_TEST_VLD(15);
-  p += CHUNK_SIZE;
-}
+// Variants
+CREATE_GADGET(test_gadget_vor, LSX_LEAK_TEST_VOR)
+CREATE_GADGET(test_gadget_vld, LSX_LEAK_TEST_VLD)
+CREATE_GADGET(test_gadget_fld_d, LSX_LEAK_TEST_FLD_D)
+CREATE_GADGET(test_gadget_fld_s, LSX_LEAK_TEST_FLD_S)
 
 static gadget test_gadget = test_gadget_vor;
 
@@ -243,10 +227,11 @@ static void usage(const char *prog) {
           "Detect data leaks into upper 128 bits of LASX $xr registers when\n"
           "executing LSX instructions.\n\n"
           "Options:\n"
-          "  -a, --all    Launch one thread pinned to each physical core.\n"
-          "               By default only thread on CPU 0 is launched.\n"
-          "  -l, --vld    Use VLD instruction instead of VOR for testing.\n"
-          "  -h, --help   Show this help and exit.\n",
+          "  -a, --all Launch one thread pinned to each physical core.\n"
+          "                      By default only thread on CPU 0 is launched.\n"
+          "  -g, --gadget [vor|vld|fld.d|fld.s] Use differents instructions "
+          "for testing.\n"
+          "  -h, --help Show this help and exit.\n",
           prog);
 }
 
@@ -257,8 +242,23 @@ int main(int argc, char **argv) {
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--all") == 0) {
       all_cores = 1;
-    } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--vld") == 0) {
-      test_gadget = test_gadget_vld;
+    } else if ((strcmp(argv[i], "-g") == 0 || strcmp(argv[i], "--gadget")) ==
+                   0 &&
+               (i + 1) < argc) {
+      if (strcmp(argv[i + 1], "vor") == 0) {
+        test_gadget = test_gadget_vor;
+      } else if (strcmp(argv[i + 1], "vld") == 0) {
+        test_gadget = test_gadget_vld;
+      } else if (strcmp(argv[i + 1], "fld.d") == 0) {
+        test_gadget = test_gadget_fld_d;
+      } else if (strcmp(argv[i + 1], "fld.s") == 0) {
+        test_gadget = test_gadget_fld_s;
+      } else {
+        usage(argv[0]);
+        return 1;
+      }
+      printf("Using gadget %s\n", argv[i + 1]);
+      i++;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       usage(argv[0]);
       return 0;

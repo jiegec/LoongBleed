@@ -31,11 +31,11 @@ while true; do numactl -C 1 sort < /etc/shadow > /dev/null; done
 
 ### 攻击场景（LA464）
 
-受害线程在一个 CPU 上处理敏感数据（例如 `sort < /etc/shadow`），同时 PoC 在同一个核上探测寄存器。嗅探线程可以在泄露的高位比特中观察到受害数据的片段。注意需要传入 `--vld` 参数，因为 LA464 不会通过 `vor.v` 指令泄漏数据。
+受害线程在一个 CPU 上处理敏感数据（例如 `sort < /etc/shadow`），同时 PoC 在同一个核上探测寄存器。嗅探线程可以在泄露的高位比特中观察到受害数据的片段。注意需要传入 `--gadget vld` 参数，因为 LA464 不会通过 `vor.v` 指令泄漏数据。
 
 ```shell
 # 终端 1 — 在 CPU 0 上启动 LoongBleed
-./run.sh --vld
+./run.sh --gadget vld
 
 # 终端 2 — 在同一个 CPU 上运行受害负载
 while true; do numactl -C 0 sort < /etc/shadow > /dev/null; done
@@ -54,7 +54,7 @@ g++ -std=c++11 -O2 -march=native -pthread -o loongbleed_poc loongbleed_poc.cpp
 ```shell
 ./run.sh
 # 或者，对 LA464：
-./run.sh --vld
+./run.sh --gadget vld
 ```
 
 ## 输出解读

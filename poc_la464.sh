@@ -11,5 +11,5 @@ sh -c "while true; do
 done" &
 LOOP_PID=$!
 
-./run.sh --vld
+./run.sh --gadget vld
 wait $LOOP_PID

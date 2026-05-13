@@ -48,12 +48,12 @@ while true; do numactl -C 1 sort < /etc/shadow > /dev/null; done
 
 A victim thread processes sensitive data (e.g., `sort < /etc/shadow`) while the
 PoC probes registers on the same core. The snooping thread can observe fragments
-of the victim's data in the leaked upper bits. Note that `--vld` is required,
+of the victim's data in the leaked upper bits. Note that `--gadget vld` is required,
 since the default gadget does not leak data on LA464.
 
 ```shell
 # Terminal 1 — start LoongBleed on CPU 0
-./run.sh --vld
+./run.sh --gadget vld
 
 # Terminal 2 — victim workload on same core
 while true; do numactl -C 0 sort < /etc/shadow > /dev/null; done
@@ -72,7 +72,7 @@ Or use the provided script:
 ```shell
 ./run.sh
 # or, on LA464:
-./run.sh --vld
+./run.sh --gadget vld
 ```
 
 ## Interpreting Output
