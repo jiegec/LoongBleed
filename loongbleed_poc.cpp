@@ -167,14 +167,14 @@ static void *worker(void *arg) {
         if (seen.find(key) == seen.end()) {
           seen.insert(key);
 
-          // Only print if >= 4 bytes are valid ASCII
+          // Only print if enough bytes are valid ASCII
           uint8_t *p = (uint8_t *)&chunk[4] + 4;
           int ascii_count = 0;
           for (int i = 0; i < 28; i++)
             if (p[i] >= 0x20 && p[i] <= 0x7e)
               ascii_count++;
 
-          if (ascii_count >= 4) {
+          if (ascii_count >= 8) {
             pthread_mutex_lock(&lock);
             printf("[cpu %3d] LEAK chunk=%2d "
                    "data=0x%016lx_%016lx_%016lx_%016lx ascii=",
