@@ -154,6 +154,19 @@ static void *worker(void *arg) {
     uint64_t data1;
     uint64_t data2;
     uint64_t data3;
+
+    bool operator<(const struct data &other) const {
+      if (data0 != other.data0) {
+        return data0 < other.data0;
+      }
+      if (data1 != other.data1) {
+        return data1 < other.data1;
+      }
+      if (data2 != other.data2) {
+        return data2 < other.data2;
+      }
+      return data3 < other.data3;
+    }
   };
 
   std::set<struct data> seen;
