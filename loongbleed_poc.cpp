@@ -42,13 +42,22 @@ static void sigint_handler(int) { running = 0; }
 
 // ---- Gadget ----------------------------------------------------------------
 // Macro: test LSX instruction on register $vrN / $xrN.
-#define LSX_LEAK_TEST(N)                                                       \
+#define LSX_LEAK_TEST_VOR(N)                                                   \
   __asm__ volatile("xvld  $xr" #N ", %[p], 0\n\t"                              \
                    "vor.v $vr" #N ", $vr" #N ", $vr" #N "\n\t"                 \
                    "xvst  $xr" #N ", %[p], 32\n\t"                             \
                    :                                                           \
                    : [p] "r"(p)                                                \
                    : "$xr" #N, "memory")
+#define LSX_LEAK_TEST_VLD(N)                                                   \
+  __asm__ volatile("xvld  $xr" #N ", %[p], 0\n\t"                              \
+                   "vld   $vr" #N ", %[p], 0\n\t"                              \
+                   "xvst  $xr" #N ", %[p], 32\n\t"                             \
+                   :                                                           \
+                   : [p] "r"(p)                                                \
+                   : "$xr" #N, "memory")
+
+typedef void (*gadget)(char *buf);
 
 // Inline assembly: load 256-bit pattern into $xr%j, run an LSX instruction
 // (vor.v) on $vr%j, then store the full 256-bit result.  Each iteration uses a
@@ -59,41 +68,80 @@ static void sigint_handler(int) { running = 0; }
 //   a0 (x0 = buf)  -- pointer to first chunk
 //
 // The "memory" clobber ensures the compiler reloads/stores around the asm.
-static void __attribute__((noinline)) test_gadget(char *buf) {
+static void __attribute__((noinline)) test_gadget_vor(char *buf) {
   char *p = buf;
-  LSX_LEAK_TEST(0);
+  LSX_LEAK_TEST_VOR(0);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(1);
+  LSX_LEAK_TEST_VOR(1);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(2);
+  LSX_LEAK_TEST_VOR(2);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(3);
+  LSX_LEAK_TEST_VOR(3);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(4);
+  LSX_LEAK_TEST_VOR(4);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(5);
+  LSX_LEAK_TEST_VOR(5);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(6);
+  LSX_LEAK_TEST_VOR(6);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(7);
+  LSX_LEAK_TEST_VOR(7);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(8);
+  LSX_LEAK_TEST_VOR(8);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(9);
+  LSX_LEAK_TEST_VOR(9);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(10);
+  LSX_LEAK_TEST_VOR(10);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(11);
+  LSX_LEAK_TEST_VOR(11);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(12);
+  LSX_LEAK_TEST_VOR(12);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(13);
+  LSX_LEAK_TEST_VOR(13);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(14);
+  LSX_LEAK_TEST_VOR(14);
   p += CHUNK_SIZE;
-  LSX_LEAK_TEST(15);
+  LSX_LEAK_TEST_VOR(15);
   p += CHUNK_SIZE;
 }
+
+// Variant of test gadget that uses vld
+static void __attribute__((noinline)) test_gadget_vld(char *buf) {
+  char *p = buf;
+  LSX_LEAK_TEST_VLD(0);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(1);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(2);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(3);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(4);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(5);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(6);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(7);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(8);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(9);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(10);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(11);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(12);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(13);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(14);
+  p += CHUNK_SIZE;
+  LSX_LEAK_TEST_VLD(15);
+  p += CHUNK_SIZE;
+}
+
+static gadget test_gadget = test_gadget_vor;
 
 // ---- Per-thread worker -----------------------------------------------------
 static void *worker(void *arg) {
@@ -197,6 +245,7 @@ static void usage(const char *prog) {
           "Options:\n"
           "  -a, --all    Launch one thread pinned to each physical core.\n"
           "               By default only thread on CPU 0 is launched.\n"
+          "  -l, --vld    Use VLD instruction instead of VOR for testing.\n"
           "  -h, --help   Show this help and exit.\n",
           prog);
 }
@@ -208,6 +257,8 @@ int main(int argc, char **argv) {
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--all") == 0) {
       all_cores = 1;
+    } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--vld") == 0) {
+      test_gadget = test_gadget_vld;
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
       usage(argv[0]);
       return 0;

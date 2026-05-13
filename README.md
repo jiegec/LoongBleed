@@ -3,15 +3,16 @@
 [中文](README_zh.md)
 
 LoongBleed is a hardware vulnerability, conceptually similar to
-[ZenBleed (CVE-2023-20593)](https://lock.cmpxchg8b.com/zenbleed.html) — affecting
-Loongson LA664 processors (e.g., 3C6000/D series) that implement both LSX (128-bit SIMD) and
-LASX (256-bit SIMD). It does **not** apply to the previous-generation LA464 cores.
+[ZenBleed (CVE-2023-20593)](https://lock.cmpxchg8b.com/zenbleed.html) —
+affecting Loongson LA464/LA664 processors that implement both LSX (128-bit SIMD)
+and LASX (256-bit SIMD).
 
-On LoongArch, the LSX `$vr` registers (128-bit) alias the lower half of the LASX `$xr` registers
-(256-bit). LSX instructions are only defined to operate on the lower 128 bits; the upper 128 bits
-of the corresponding `$xr` register are undefined. However, due to a
-microarchitectural flaw, LSX instructions **can leak data** through the upper 128 bits
-of `$xr`, exposing sensitive data across privilege boundaries or between SMT siblings.
+On LoongArch, the LSX `$vr` registers (128-bit) alias the lower half of the LASX
+`$xr` registers (256-bit). LSX instructions are only defined to operate on the
+lower 128 bits; the upper 128 bits of the corresponding `$xr` register are
+undefined. However, due to a microarchitectural flaw, LSX instructions **can
+leak data** through the upper 128 bits of `$xr`, exposing sensitive data across
+privilege boundaries or between SMT siblings.
 
 ## How It Works
 
@@ -29,7 +30,7 @@ The PoC runs this gadget repeatedly across 16 architectural vector registers
 values that appear after an LSX operation indicate that the microarchitecture has
 propagated stale or cross-context data into the architectural register state.
 
-### Attack Scenario
+### Attack Scenario (LA664)
 
 A victim thread processes sensitive data (e.g., `sort < /etc/shadow`) on one
 logical CPU while the PoC probes registers on its SMT sibling. The snooping
@@ -41,6 +42,21 @@ thread can observe fragments of the victim's data in the leaked upper bits.
 
 # Terminal 2 — victim workload on the SMT sibling (CPU 1)
 while true; do numactl -C 1 sort < /etc/shadow > /dev/null; done
+```
+
+### Attack Scenario (LA464)
+
+A victim thread processes sensitive data (e.g., `sort < /etc/shadow`) while the
+PoC probes registers on the same core. The snooping thread can observe fragments
+of the victim's data in the leaked upper bits. Note that `--vld` is required,
+since the default gadget does not leak data on LA464.
+
+```shell
+# Terminal 1 — start LoongBleed on CPU 0
+./run.sh --vld
+
+# Terminal 2 — victim workload on same core
+while true; do numactl -C 0 sort < /etc/shadow > /dev/null; done
 ```
 
 ## Building
@@ -55,6 +71,8 @@ Or use the provided script:
 
 ```shell
 ./run.sh
+# or, on LA464:
+./run.sh --vld
 ```
 
 ## Interpreting Output

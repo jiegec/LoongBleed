@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-LoongBleed 是一种硬件漏洞，概念上类似于 [ZenBleed (CVE-2023-20593)](https://lock.cmpxchg8b.com/zenbleed.html)，影响同时实现了 LSX（128 位 SIMD）和 LASX（256 位 SIMD）的龙芯 LA664 处理器（例如 3C6000/D 系列）。**不**适用于上一代 LA464 核心。
+LoongBleed 是一种硬件漏洞，概念上类似于 [ZenBleed (CVE-2023-20593)](https://lock.cmpxchg8b.com/zenbleed.html)，影响同时实现了 LSX（128 位 SIMD）和 LASX（256 位 SIMD）的龙芯 LA464/LA664 处理器。
 
 在 LoongArch 架构中，LSX `$vr` 寄存器（128 位）与 LASX `$xr` 寄存器（256 位）的低 128 位重叠。LSX 指令被定义为仅操作低 128 位；对应 `$xr` 寄存器的高 128 位在架构上未定义。然而，由于微架构缺陷，LSX 指令**可能通过** `$xr` 的高 128 位**泄露数据**，从而将敏感数据暴露到特权边界之外或 SMT 线程之间。
 
@@ -17,7 +17,7 @@ LoongBleed 是一种硬件漏洞，概念上类似于 [ZenBleed (CVE-2023-20593)
 
 该 PoC 在绑定到物理核心的线程上，对 16 个架构向量寄存器（`$xr0`–`$xr15`）重复执行上述探测。若 LSX 操作后高 128 位出现非零值，表明微架构已将陈旧数据或跨上下文数据传播到架构寄存器状态中。
 
-### 攻击场景
+### 攻击场景（LA664）
 
 受害线程在一个逻辑 CPU 上处理敏感数据（例如 `sort < /etc/shadow`），同时 PoC 在其 SMT 兄弟线程上探测寄存器。嗅探线程可以在泄露的高位比特中观察到受害数据的片段。
 
@@ -27,6 +27,18 @@ LoongBleed 是一种硬件漏洞，概念上类似于 [ZenBleed (CVE-2023-20593)
 
 # 终端 2 — 在 SMT 兄弟线程（CPU 1）上运行受害负载
 while true; do numactl -C 1 sort < /etc/shadow > /dev/null; done
+```
+
+### 攻击场景（LA464）
+
+受害线程在一个 CPU 上处理敏感数据（例如 `sort < /etc/shadow`），同时 PoC 在同一个核上探测寄存器。嗅探线程可以在泄露的高位比特中观察到受害数据的片段。注意需要传入 `--vld` 参数，因为 LA464 不会通过 `vor.v` 指令泄漏数据。
+
+```shell
+# 终端 1 — 在 CPU 0 上启动 LoongBleed
+./run.sh --vld
+
+# 终端 2 — 在同一个 CPU 上运行受害负载
+while true; do numactl -C 0 sort < /etc/shadow > /dev/null; done
 ```
 
 ## 编译
@@ -41,6 +53,8 @@ g++ -std=c++11 -O2 -march=native -pthread -o loongbleed_poc loongbleed_poc.cpp
 
 ```shell
 ./run.sh
+# 或者，对 LA464：
+./run.sh --vld
 ```
 
 ## 输出解读
