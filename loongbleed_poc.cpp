@@ -201,7 +201,7 @@ static void *worker(void *arg) {
             }
           }
 
-          if (cont_count >= 8) {
+          if (ascii_count >= 8) {
             pthread_mutex_lock(&lock);
             printf("[cpu %3d] LEAK chunk=%2d "
                    "data=0x%016lx_%016lx_%016lx_%016lx ascii=",
