@@ -30,7 +30,7 @@
 #define REPEAT 16
 #define BUF_SIZE (CHUNK_SIZE * REPEAT)
 
-// ---- Global state (shared seen set, protected by mutex) ----
+// ---- Global state (protected by mutex) ----
 static volatile int running = 1;
 static int num_online_cpus;
 static int
@@ -149,7 +149,14 @@ static void *worker(void *arg) {
 
   printf("[cpu %2d] thread started, pinning to CPU %d\n", cpu, cpu);
 
-  std::set<std::array<uint64_t, 4>> seen;
+  struct data {
+    uint64_t data0;
+    uint64_t data1;
+    uint64_t data2;
+    uint64_t data3;
+  };
+
+  std::set<struct data> seen;
 
   while (running) {
     // Clear the area
@@ -167,7 +174,7 @@ static void *worker(void *arg) {
       uint64_t data2 = chunk[6];
       uint64_t data3 = chunk[7];
       if (data0 != 0 || data1 != 0 || data2 != 0 || data3 != 0) {
-        std::array<uint64_t, 4> key = {data0, data1, data2, data3};
+        struct data key = {data0, data1, data2, data3};
         if (seen.find(key) == seen.end()) {
           seen.insert(key);
 
