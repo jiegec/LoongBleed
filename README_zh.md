@@ -6,6 +6,14 @@ LoongBleed 是一种硬件漏洞，概念上类似于 [ZenBleed (CVE-2023-20593)
 
 在 LoongArch 架构中，LSX `$vr` 寄存器（128 位）与 LASX `$xr` 寄存器（256 位）的低 128 位重叠。LSX 指令和基础浮点操作在架构上只应操作低 128 位（或其子集）；对应 `$xr` 寄存器的高位应当保持不变。然而，由于微架构缺陷，这些操作**可能通过** `$xr` 的高 128 位**泄露数据**，从而将敏感数据暴露到特权边界之外或 SMT 线程之间。
 
+> **独立发现说明** — CISPA Helmholtz 信息安全中心的研究人员也独立发现了相同的底层硬件缺陷，并以 **LoongLeak** 之名公开发表（[https://loongleakattack.com/](https://loongleakattack.com/)），相关论文发表于 USENIX Security 2026："LoongLeak: Architectural Cross-Privilege-Boundary Data Leakage on LoongArch CPUs"。我们的工作独立于 LoongLeak 团队开展；两个团队得出了相同的结论：龙芯 LA464/LA664 处理器会通过 LASX `$xr` 寄存器未定义的高位泄露数据。需要说明的是，我们触发泄露所用的指令与 LoongLeak 论文中报告的指令并不完全一致：我们的 PoC 使用了一组不同的探测指令（`vor.v`、`vld`、`fld.d`、`fld.s`）来复现同一底层硬件缺陷。此外，由于不使用任何 load 指令（如纯寄存器指令 `vor.v`）也能触发泄露，我们的分析倾向于认为根因是物理寄存器复用：被复用的物理寄存器高位未被清零，从而泄露了先前占用者的陈旧数据。这与 LoongLeak 论文将泄露数据归因于 L1 数据缓存的分析有所不同。
+
+## 时间线
+
+- **2026-05-12** — 将漏洞上报给龙芯公司。
+- **2026-06-09** — 龙芯公司确认这是对已有漏洞的独立发现。
+- **2026-08-18** — 龙芯官方公开发布了关于 LoongLeak 漏洞的说明（[官方公告](https://www.loongson.cn/news/show?id=850)）
+
 ## 工作原理
 
 概念验证程序的工作流程如下：
@@ -137,6 +145,10 @@ g++ -std=c++11 -O2 -march=native -pthread -o loongbleed_poc loongbleed_poc.cpp
 - **ascii** — 28 字节窗口（结果字节 4–31，即高 224 位减去最低 32 位）的可打印字符解释。不可打印字节显示为 `.`。
 
 高 128 位（`data2` 或 `data3`）中的任何非零值均表示微架构数据泄露。
+
+## 发现过程
+
+该漏洞是在阅读 Chips and Cheese 的文章《[Loongson's LSX and LASX Vector Extensions](https://chipsandcheese.com/p/loongsons-lsx-and-lasx-vector-extensions)》时发现的。文中提到向量指令会残留一些随机数据，这让我们联想到：会不会是寄存器重命名没有清空寄存器——这与 ZenBleed 的机制类似——理论上就可以泄露内核态数据。于是我们做了实验验证这一假设，发现确实如此，并且在龙芯 3A5000 和 3A6000 上都能复现。
 
 ## 免责声明
 

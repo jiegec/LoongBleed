@@ -15,6 +15,31 @@ to a microarchitectural flaw, these operations **can leak data** through the
 upper 128 bits of `$xr`, exposing sensitive data across privilege boundaries or
 between SMT siblings.
 
+> **Note on independent discovery** — The same underlying hardware flaw was
+> independently discovered and published by researchers at CISPA Helmholtz
+> Center for Information Security as **LoongLeak**
+> ([https://loongleakattack.com/](https://loongleakattack.com/)), presented at
+> USENIX Security 2026 as "LoongLeak: Architectural Cross-Privilege-Boundary
+> Data Leakage on LoongArch CPUs". Our work was developed independently of the
+> LoongLeak team; both groups reached the same conclusion that Loongson
+> LA464/LA664 processors leak data through the undefined upper bits of the LASX
+> `$xr` registers. Note that the instructions we use to trigger the leak are not
+> identical to those reported in the LoongLeak paper: our PoC relies on a
+> different set of gadgets (`vor.v`, `vld`, `fld.d`, `fld.s`) to reproduce the
+> same underlying hardware flaw. Moreover, because the leak can be triggered by
+> pure register-register instructions such as `vor.v` (no memory load
+> involved), our analysis suggests the root cause is likely physical register
+> reuse: the upper bits of a reused physical register are not cleared, leaking
+> stale data from a previous register occupant. This differs from the LoongLeak
+> paper's analysis, which attributes the leaked data to the L1 data cache.
+
+## Timeline
+
+- **2026-05-12** — Reported the vulnerability to Loongson.
+- **2026-06-09** — Loongson confirmed that this is an independent discovery of
+  an already-known vulnerability.
+- **2026-08-18** — Loongson officially published an announcement regarding the LoongLeak vulnerability ([official announcement](https://www.loongson.cn/news/show?id=850))
+
 ## How It Works
 
 The proof-of-concept works as follows:
@@ -161,6 +186,16 @@ contiguous printable ASCII characters (0x20–0x7e), the PoC prints:
 
 Any non-zero value in the upper 128 bits (`data2` or `data3`) indicates a
 microarchitectural data leak.
+
+## How Was It Discovered
+
+The vulnerability was discovered while reading the Chips and Cheese article
+"[Loongson's LSX and LASX Vector Extensions](https://chipsandcheese.com/p/loongsons-lsx-and-lasx-vector-extensions)".
+The article noted that vector instructions can leave behind some random data
+residue. This led us to hypothesize that register renaming might not clear the
+registers — a mechanism similar to ZenBleed — which would in theory allow
+leaking kernel-space data. We then ran experiments to verify this hypothesis;
+the leak indeed occurs and reproduces on both the Loongson 3A5000 and 3A6000.
 
 ## Disclaimer
 
