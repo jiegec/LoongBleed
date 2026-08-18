@@ -38,7 +38,7 @@ between SMT siblings.
 - **2026-05-12** — Reported the vulnerability to Loongson.
 - **2026-06-09** — Loongson confirmed that this is an independent discovery of
   an already-known vulnerability.
-- **2026-08-18** — Loongson officially published an announcement regarding the LoongLeak vulnerability ([official announcement](https://www.loongson.cn/news/show?id=850))
+- **2026-08-17** — Loongson officially published an announcement regarding the LoongLeak vulnerability ([official announcement](https://www.loongson.cn/news/show?id=850))
 
 ## How It Works
 
